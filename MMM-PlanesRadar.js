@@ -21,6 +21,7 @@ Module.register("MMM-PlanesRadar", {
 		showDetails: true,     // table with nearest contacts under the scope
 		detailsCount: 3,       // how many nearest contacts to list
 		showGround: false,     // include aircraft on the ground
+		showEffects: true,     // gradients and glow shadows; disable for flat rendering on low-power hardware
 		maxPlanes: 40,         // cap on displayed aircraft
 		color: "0, 255, 65",   // phosphor color as "r, g, b"
 		apiBase: "https://api.adsb.lol/v2/point"
@@ -54,6 +55,9 @@ Module.register("MMM-PlanesRadar", {
 	getDom() {
 		const wrapper = document.createElement("div");
 		wrapper.className = "planesradar";
+		if (!this.config.showEffects) {
+			wrapper.classList.add("planesradar-noeffects");
+		}
 
 		this.canvas = document.createElement("canvas");
 		this.canvas.width = this.config.size;
@@ -163,10 +167,14 @@ Module.register("MMM-PlanesRadar", {
 		staticLayer.width = staticLayer.height = size;
 		const sc = staticLayer.getContext("2d");
 
-		const bg = sc.createRadialGradient(cx, cy, 0, cx, cy, R);
-		bg.addColorStop(0, `rgba(${col}, 0.10)`);
-		bg.addColorStop(1, "rgba(0, 12, 2, 0.95)");
-		sc.fillStyle = bg;
+		if (this.config.showEffects) {
+			const bg = sc.createRadialGradient(cx, cy, 0, cx, cy, R);
+			bg.addColorStop(0, `rgba(${col}, 0.10)`);
+			bg.addColorStop(1, "rgba(0, 12, 2, 0.95)");
+			sc.fillStyle = bg;
+		} else {
+			sc.fillStyle = "rgba(0, 12, 2, 0.95)";
+		}
 		sc.beginPath();
 		sc.arc(cx, cy, R, 0, 2 * Math.PI);
 		sc.fill();
@@ -219,7 +227,15 @@ Module.register("MMM-PlanesRadar", {
 		tc.beginPath();
 		tc.arc(cx, cy, R, 0, 2 * Math.PI);
 		tc.clip();
-		if (typeof tc.createConicGradient === "function") {
+		if (!this.config.showEffects) {
+			// Flat trail: single low-alpha wedge behind the beam, no gradient
+			tc.fillStyle = `rgba(${col}, 0.12)`;
+			tc.beginPath();
+			tc.moveTo(cx, cy);
+			tc.arc(cx, cy, R, -Math.PI, -Math.PI / 2);
+			tc.closePath();
+			tc.fill();
+		} else if (typeof tc.createConicGradient === "function") {
 			// Trail fades out behind the beam, all the way around
 			const grad = tc.createConicGradient(-Math.PI / 2, cx, cy);
 			grad.addColorStop(0, `rgba(${col}, 0)`);
@@ -246,8 +262,10 @@ Module.register("MMM-PlanesRadar", {
 
 		tc.strokeStyle = `rgba(${col}, 0.9)`;
 		tc.lineWidth = 2;
-		tc.shadowColor = `rgb(${col})`;
-		tc.shadowBlur = 8;
+		if (this.config.showEffects) {
+			tc.shadowColor = `rgb(${col})`;
+			tc.shadowBlur = 8;
+		}
 		tc.beginPath();
 		tc.moveTo(cx, cy);
 		tc.lineTo(cx, cy - R);
@@ -366,8 +384,10 @@ Module.register("MMM-PlanesRadar", {
 
 			// blip
 			ctx.fillStyle = `rgba(${col}, ${alpha})`;
-			ctx.shadowColor = `rgb(${col})`;
-			ctx.shadowBlur = 6 * p.intensity;
+			if (this.config.showEffects) {
+				ctx.shadowColor = `rgb(${col})`;
+				ctx.shadowBlur = 6 * p.intensity;
+			}
 			ctx.beginPath();
 			ctx.arc(px, py, 3, 0, 2 * Math.PI);
 			ctx.fill();

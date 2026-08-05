@@ -33,7 +33,9 @@
 			lat: 52.2297,
 			lon: 21.0122,
 			range: 100,
-			size: 420
+			size: 420,
+			// open as preview.html?effects=0 to test flat rendering
+			showEffects: new URLSearchParams(location.search).get("effects") !== "0"
 		});
 		mod.sendSocketNotification = () => {};
 		mod.start();

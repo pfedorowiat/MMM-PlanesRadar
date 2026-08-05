@@ -64,6 +64,7 @@ Add to the `modules` array in `config/config.js`:
 | `showDetails`    | `true`                              | Show a table with the nearest contacts under the scope            |
 | `detailsCount`   | `3`                                 | How many nearest contacts to list in the details table            |
 | `showGround`     | `false`                             | Include aircraft on the ground                                    |
+| `showEffects`    | `true`                              | Gradients and glow shadows. Set `false` for flat rendering — cheaper to draw on low-power hardware |
 | `maxPlanes`      | `40`                                | Maximum number of aircraft drawn (nearest first)                  |
 | `color`          | `"0, 255, 65"`                      | Phosphor color as an `"r, g, b"` string (e.g. amber: `"255, 176, 0"`) |
 | `apiBase`        | `"https://api.adsb.lol/v2/point"`   | Data endpoint; `"https://api.airplanes.live/v2/point"` also works |
@@ -84,7 +85,10 @@ The static scope face (rings, ticks, labels, bezel) and the sweep trail are
 pre-rendered to offscreen canvases once, so each animation frame only
 composites two images and draws the blips. On low-power hardware (e.g. a
 Raspberry Pi) additionally set `frameRate: 30` (or `24`) to halve the render
-load — the sweep speed stays the same, it just redraws less often.
+load — the sweep speed stays the same, it just redraws less often. Setting
+`showEffects: false` removes the gradients and glow shadows (the per-blip
+`shadowBlur` in particular is expensive), trading the phosphor look for a
+flat, cheaper-to-draw scope.
 
 ## License
 
