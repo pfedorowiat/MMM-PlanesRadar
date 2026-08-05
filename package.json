@@ -1,0 +1,20 @@
+{
+  "name": "mmm-planesradar",
+  "version": "1.0.0",
+  "description": "MagicMirror² module that shows nearby aircraft on an old-style military radar scope (green phosphor circle with rotating sweep).",
+  "main": "MMM-PlanesRadar.js",
+  "keywords": [
+    "magicmirror",
+    "magic mirror",
+    "radar",
+    "planes",
+    "aircraft",
+    "adsb",
+    "flightradar"
+  ],
+  "author": "Przemek Fedorowiat",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  }
+}

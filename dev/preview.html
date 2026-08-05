@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8" />
+	<title>MMM-PlanesRadar preview</title>
+	<link rel="stylesheet" href="../MMM-PlanesRadar.css" />
+	<style>
+		body {
+			background: #000;
+			margin: 0;
+			min-height: 100vh;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+		}
+	</style>
+</head>
+<body>
+	<script>
+		/* Minimal MagicMirror stubs so the module runs standalone */
+		window.Log = console;
+		window.Module = {
+			register(name, def) {
+				window.__moduleDef = def;
+			}
+		};
+	</script>
+	<script src="../MMM-PlanesRadar.js"></script>
+	<script>
+		const mod = Object.assign({}, window.__moduleDef);
+		mod.identifier = "preview";
+		mod.config = Object.assign({}, mod.defaults, {
+			lat: 52.2297,
+			lon: 21.0122,
+			range: 100,
+			size: 420
+		});
+		mod.sendSocketNotification = () => {};
+		mod.start();
+		document.body.appendChild(mod.getDom());
+
+		/* Fallback contacts in case the API is unreachable from the browser */
+		const samplePlanes = [
+			{ hex: "48c123", callsign: "LOT281", lat: 52.45, lon: 21.30, alt: 12000, onGround: false, gs: 320, track: 245 },
+			{ hex: "4d2201", callsign: "RYR45K", lat: 52.05, lon: 20.60, alt: 36000, onGround: false, gs: 450, track: 90 },
+			{ hex: "3c66a9", callsign: "DLH8XA", lat: 52.60, lon: 20.85, alt: 24000, onGround: false, gs: 410, track: 180 },
+			{ hex: "489abc", callsign: "ENT771", lat: 51.95, lon: 21.45, alt: 8000, onGround: false, gs: 280, track: 10 },
+			{ hex: "48d456", callsign: null, lat: 52.30, lon: 21.05, alt: 3000, onGround: false, gs: 180, track: 300 }
+		];
+
+		function feed(planes) {
+			mod.socketNotificationReceived("PLANESRADAR_DATA", {
+				identifier: "preview",
+				planes
+			});
+		}
+
+		async function fetchLive() {
+			const radiusNm = Math.min(250, Math.ceil(mod.config.range / 1.852));
+			const url = `https://api.adsb.lol/v2/point/${mod.config.lat}/${mod.config.lon}/${radiusNm}`;
+			const res = await fetch(url);
+			if (!res.ok) throw new Error(`HTTP ${res.status}`);
+			const data = await res.json();
+			return (data.ac || [])
+				.filter((ac) => typeof ac.lat === "number" && typeof ac.lon === "number")
+				.map((ac) => ({
+					hex: ac.hex,
+					callsign: (ac.flight || "").trim() || null,
+					lat: ac.lat,
+					lon: ac.lon,
+					alt: typeof ac.alt_baro === "number" ? ac.alt_baro : null,
+					onGround: ac.alt_baro === "ground",
+					gs: typeof ac.gs === "number" ? ac.gs : null,
+					track: typeof ac.track === "number" ? ac.track : null,
+					type: ac.t || null
+				}));
+		}
+
+		fetchLive()
+			.then((planes) => {
+				console.log(`Live data: ${planes.length} aircraft`);
+				feed(planes);
+				setInterval(() => fetchLive().then(feed).catch(console.error), 15000);
+			})
+			.catch((err) => {
+				console.warn("Live fetch failed, using sample data:", err.message);
+				feed(samplePlanes);
+			});
+	</script>
+</body>
+</html>

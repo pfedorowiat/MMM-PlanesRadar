@@ -1,0 +1,43 @@
+.planesradar {
+	display: inline-block;
+	text-align: center;
+}
+
+.planesradar-scope {
+	border-radius: 50%;
+	box-shadow:
+		0 0 20px rgba(0, 255, 65, 0.25),
+		inset 0 0 40px rgba(0, 255, 65, 0.08);
+	background: #000;
+}
+
+.planesradar-details {
+	display: inline-block;
+	margin-top: 10px;
+	padding: 6px 10px;
+	border: 1px solid rgba(0, 255, 65, 0.35);
+	font-family: "Courier New", Courier, monospace;
+	font-size: 13px;
+	line-height: 1.5;
+	text-align: left;
+	white-space: pre;
+	color: rgba(0, 255, 65, 0.9);
+	text-shadow: 0 0 5px rgba(0, 255, 65, 0.5);
+}
+
+.planesradar-details-header {
+	color: rgba(0, 255, 65, 0.5);
+	border-bottom: 1px solid rgba(0, 255, 65, 0.25);
+	margin-bottom: 3px;
+	padding-bottom: 3px;
+}
+
+.planesradar-info {
+	margin-top: 8px;
+	font-family: "Courier New", Courier, monospace;
+	font-size: 13px;
+	letter-spacing: 2px;
+	color: rgba(0, 255, 65, 0.85);
+	text-shadow: 0 0 6px rgba(0, 255, 65, 0.6);
+	white-space: nowrap;
+}
