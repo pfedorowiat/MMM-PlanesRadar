@@ -41,3 +41,13 @@
 	text-shadow: 0 0 6px rgba(0, 255, 65, 0.6);
 	white-space: nowrap;
 }
+
+/* showEffects: false — flat rendering without shadows */
+.planesradar-noeffects .planesradar-scope {
+	box-shadow: none;
+}
+
+.planesradar-noeffects .planesradar-details,
+.planesradar-noeffects .planesradar-info {
+	text-shadow: none;
+}
