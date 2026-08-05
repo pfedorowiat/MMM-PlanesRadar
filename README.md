@@ -57,7 +57,6 @@ Add to the `modules` array in `config/config.js`:
 | `updateInterval` | `15`                                | Seconds between data fetches                                      |
 | `size`           | `400`                               | Scope diameter in pixels                                          |
 | `rotationTime`   | `4`                                 | Seconds per full sweep rotation                                   |
-| `frameRate`      | `60`                                | Max redraws per second (1–60). Lower it (e.g. `30` or `24`) on low-power hardware like a Raspberry Pi |
 | `rings`          | `4`                                 | Number of range rings                                             |
 | `showLabels`     | `true`                              | Show callsign + flight level next to blips                        |
 | `showInfo`       | `true`                              | Show status line (contacts / range / position) under the scope    |
@@ -77,14 +76,6 @@ Add to the `modules` array in `config/config.js`:
   movement stays smooth between API updates.
 - When the sweep beam crosses a blip's bearing, its intensity resets to full
   and then decays exponentially — the classic phosphor afterglow.
-
-## Performance
-
-The static scope face (rings, ticks, labels, bezel) and the sweep trail are
-pre-rendered to offscreen canvases once, so each animation frame only
-composites two images and draws the blips. On low-power hardware (e.g. a
-Raspberry Pi) additionally set `frameRate: 30` (or `24`) to halve the render
-load — the sweep speed stays the same, it just redraws less often.
 
 ## License
 

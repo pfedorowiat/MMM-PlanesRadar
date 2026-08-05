@@ -14,7 +14,6 @@ Module.register("MMM-PlanesRadar", {
 		updateInterval: 15,    // seconds between data fetches
 		size: 400,             // scope diameter in px
 		rotationTime: 4,       // seconds per full sweep rotation
-		frameRate: 60,         // max redraws per second — lower (e.g. 30 or 24) on low-power hardware
 		rings: 4,              // number of range rings
 		showLabels: true,      // callsign + flight level next to blips
 		showInfo: true,        // status line under the scope
@@ -130,13 +129,8 @@ Module.register("MMM-PlanesRadar", {
 	startAnimation() {
 		if (this.animFrame !== null) return;
 		this.lastFrame = null;
-		this.lastDraw = -Infinity;
-		const fps = Math.min(60, Math.max(1, this.config.frameRate));
-		const minInterval = 1000 / fps - 1; // 1 ms tolerance for rAF jitter
 		const loop = (t) => {
 			this.animFrame = requestAnimationFrame(loop);
-			if (t - this.lastDraw < minInterval) return;
-			this.lastDraw = t;
 			this.drawFrame(t);
 		};
 		this.animFrame = requestAnimationFrame(loop);
@@ -147,113 +141,6 @@ Module.register("MMM-PlanesRadar", {
 			cancelAnimationFrame(this.animFrame);
 			this.animFrame = null;
 		}
-	},
-
-	/* Pre-render the static scope face and the sweep trail to offscreen
-	 * canvases so the animation loop only composites them. */
-	buildLayers() {
-		const size = this.config.size;
-		const cx = size / 2;
-		const cy = size / 2;
-		const R = size / 2 - 4;
-		const col = this.config.color;
-
-		// --- static layer: background, rings, labels, crosshairs, ticks, bezel ---
-		const staticLayer = document.createElement("canvas");
-		staticLayer.width = staticLayer.height = size;
-		const sc = staticLayer.getContext("2d");
-
-		const bg = sc.createRadialGradient(cx, cy, 0, cx, cy, R);
-		bg.addColorStop(0, `rgba(${col}, 0.10)`);
-		bg.addColorStop(1, "rgba(0, 12, 2, 0.95)");
-		sc.fillStyle = bg;
-		sc.beginPath();
-		sc.arc(cx, cy, R, 0, 2 * Math.PI);
-		sc.fill();
-
-		sc.strokeStyle = `rgba(${col}, 0.35)`;
-		sc.lineWidth = 1;
-		for (let i = 1; i <= this.config.rings; i++) {
-			sc.beginPath();
-			sc.arc(cx, cy, (R * i) / this.config.rings, 0, 2 * Math.PI);
-			sc.stroke();
-		}
-
-		sc.fillStyle = `rgba(${col}, 0.5)`;
-		sc.font = `${Math.max(9, size / 45)}px monospace`;
-		sc.textAlign = "left";
-		for (let i = 1; i <= this.config.rings; i++) {
-			const km = Math.round((this.config.range * i) / this.config.rings);
-			sc.fillText(`${km}`, cx + 3, cy - (R * i) / this.config.rings + 12);
-		}
-
-		sc.strokeStyle = `rgba(${col}, 0.25)`;
-		sc.beginPath();
-		sc.moveTo(cx - R, cy); sc.lineTo(cx + R, cy);
-		sc.moveTo(cx, cy - R); sc.lineTo(cx, cy + R);
-		sc.stroke();
-
-		sc.strokeStyle = `rgba(${col}, 0.5)`;
-		for (let deg = 0; deg < 360; deg += 30) {
-			const a = (deg * Math.PI) / 180;
-			sc.beginPath();
-			sc.moveTo(cx + (R - 6) * Math.sin(a), cy - (R - 6) * Math.cos(a));
-			sc.lineTo(cx + R * Math.sin(a), cy - R * Math.cos(a));
-			sc.stroke();
-		}
-
-		sc.strokeStyle = `rgba(${col}, 0.8)`;
-		sc.lineWidth = 2;
-		sc.beginPath();
-		sc.arc(cx, cy, R, 0, 2 * Math.PI);
-		sc.stroke();
-
-		this.staticLayer = staticLayer;
-
-		// --- trail layer: sweep trail + beam, pointing north; rotated at draw time ---
-		const trailLayer = document.createElement("canvas");
-		trailLayer.width = trailLayer.height = size;
-		const tc = trailLayer.getContext("2d");
-
-		tc.save();
-		tc.beginPath();
-		tc.arc(cx, cy, R, 0, 2 * Math.PI);
-		tc.clip();
-		if (typeof tc.createConicGradient === "function") {
-			// Trail fades out behind the beam, all the way around
-			const grad = tc.createConicGradient(-Math.PI / 2, cx, cy);
-			grad.addColorStop(0, `rgba(${col}, 0)`);
-			grad.addColorStop(0.75, `rgba(${col}, 0)`);
-			grad.addColorStop(1, `rgba(${col}, 0.35)`);
-			tc.fillStyle = grad;
-			tc.fillRect(0, 0, size, size);
-		} else {
-			// Fallback: 40 thin wedges with decreasing alpha behind the beam
-			const segments = 40;
-			const trail = Math.PI / 2;
-			for (let i = 0; i < segments; i++) {
-				const a0 = -(trail * (i + 1)) / segments - Math.PI / 2;
-				const a1 = -(trail * i) / segments - Math.PI / 2;
-				tc.fillStyle = `rgba(${col}, ${0.3 * (1 - i / segments)})`;
-				tc.beginPath();
-				tc.moveTo(cx, cy);
-				tc.arc(cx, cy, R, a0, a1);
-				tc.closePath();
-				tc.fill();
-			}
-		}
-		tc.restore();
-
-		tc.strokeStyle = `rgba(${col}, 0.9)`;
-		tc.lineWidth = 2;
-		tc.shadowColor = `rgb(${col})`;
-		tc.shadowBlur = 8;
-		tc.beginPath();
-		tc.moveTo(cx, cy);
-		tc.lineTo(cx, cy - R);
-		tc.stroke();
-
-		this.trailLayer = trailLayer;
 	},
 
 	/* Dead-reckon a plane's position forward from its last report
@@ -282,14 +169,10 @@ Module.register("MMM-PlanesRadar", {
 		const col = this.config.color;
 		const now = Date.now();
 
-		if (!this.staticLayer) {
-			this.buildLayers();
-		}
-
 		// --- advance sweep ---
 		let dt = 0;
 		if (this.lastFrame !== null) {
-			dt = Math.min((timestamp - this.lastFrame) / 1000, 0.5);
+			dt = Math.min((timestamp - this.lastFrame) / 1000, 0.2);
 		}
 		this.lastFrame = timestamp;
 		const step = (2 * Math.PI * dt) / this.config.rotationTime;
@@ -297,15 +180,93 @@ Module.register("MMM-PlanesRadar", {
 
 		ctx.clearRect(0, 0, size, size);
 
-		// --- scope face (pre-rendered) ---
-		ctx.drawImage(this.staticLayer, 0, 0);
+		// --- scope background ---
+		const bg = ctx.createRadialGradient(cx, cy, 0, cx, cy, R);
+		bg.addColorStop(0, `rgba(${col}, 0.10)`);
+		bg.addColorStop(1, "rgba(0, 12, 2, 0.95)");
+		ctx.fillStyle = bg;
+		ctx.beginPath();
+		ctx.arc(cx, cy, R, 0, 2 * Math.PI);
+		ctx.fill();
 
-		// --- sweep trail + beam (pre-rendered pointing north, rotated) ---
+		// --- range rings ---
+		ctx.strokeStyle = `rgba(${col}, 0.35)`;
+		ctx.lineWidth = 1;
+		for (let i = 1; i <= this.config.rings; i++) {
+			ctx.beginPath();
+			ctx.arc(cx, cy, (R * i) / this.config.rings, 0, 2 * Math.PI);
+			ctx.stroke();
+		}
+
+		// ring distance labels
+		ctx.fillStyle = `rgba(${col}, 0.5)`;
+		ctx.font = `${Math.max(9, size / 45)}px monospace`;
+		ctx.textAlign = "left";
+		for (let i = 1; i <= this.config.rings; i++) {
+			const km = Math.round((this.config.range * i) / this.config.rings);
+			ctx.fillText(`${km}`, cx + 3, cy - (R * i) / this.config.rings + 12);
+		}
+
+		// --- crosshairs + bearing ticks ---
+		ctx.strokeStyle = `rgba(${col}, 0.25)`;
+		ctx.beginPath();
+		ctx.moveTo(cx - R, cy); ctx.lineTo(cx + R, cy);
+		ctx.moveTo(cx, cy - R); ctx.lineTo(cx, cy + R);
+		ctx.stroke();
+
+		ctx.strokeStyle = `rgba(${col}, 0.5)`;
+		for (let deg = 0; deg < 360; deg += 30) {
+			const a = (deg * Math.PI) / 180;
+			const sx = cx + (R - 6) * Math.sin(a);
+			const sy = cy - (R - 6) * Math.cos(a);
+			const ex = cx + R * Math.sin(a);
+			const ey = cy - R * Math.cos(a);
+			ctx.beginPath();
+			ctx.moveTo(sx, sy);
+			ctx.lineTo(ex, ey);
+			ctx.stroke();
+		}
+
+		// --- sweep trail ---
 		ctx.save();
-		ctx.translate(cx, cy);
-		ctx.rotate(this.sweepAngle);
-		ctx.drawImage(this.trailLayer, -cx, -cy);
+		ctx.beginPath();
+		ctx.arc(cx, cy, R, 0, 2 * Math.PI);
+		ctx.clip();
+		if (typeof ctx.createConicGradient === "function") {
+			// Trail fades out behind the beam, all the way around
+			const grad = ctx.createConicGradient(this.sweepAngle - Math.PI / 2, cx, cy);
+			grad.addColorStop(0, `rgba(${col}, 0)`);
+			grad.addColorStop(0.75, `rgba(${col}, 0)`);
+			grad.addColorStop(1, `rgba(${col}, 0.35)`);
+			ctx.fillStyle = grad;
+			ctx.fillRect(0, 0, size, size);
+		} else {
+			// Fallback: 40 thin wedges with decreasing alpha behind the beam
+			const segments = 40;
+			const trail = Math.PI / 2;
+			for (let i = 0; i < segments; i++) {
+				const a0 = this.sweepAngle - (trail * (i + 1)) / segments;
+				const a1 = this.sweepAngle - (trail * i) / segments;
+				ctx.fillStyle = `rgba(${col}, ${0.3 * (1 - i / segments)})`;
+				ctx.beginPath();
+				ctx.moveTo(cx, cy);
+				ctx.arc(cx, cy, R, a0 - Math.PI / 2, a1 - Math.PI / 2);
+				ctx.closePath();
+				ctx.fill();
+			}
+		}
 		ctx.restore();
+
+		// --- beam line ---
+		ctx.strokeStyle = `rgba(${col}, 0.9)`;
+		ctx.lineWidth = 2;
+		ctx.shadowColor = `rgb(${col})`;
+		ctx.shadowBlur = 8;
+		ctx.beginPath();
+		ctx.moveTo(cx, cy);
+		ctx.lineTo(cx + R * Math.sin(this.sweepAngle), cy - R * Math.cos(this.sweepAngle));
+		ctx.stroke();
+		ctx.shadowBlur = 0;
 
 		// --- aircraft blips ---
 		const kmPerDegLat = 111.32;
@@ -386,6 +347,13 @@ Module.register("MMM-PlanesRadar", {
 				ctx.fillText(label, px + (px > cx ? -6 : 6), py - 6);
 			}
 		}
+
+		// --- outer bezel ---
+		ctx.strokeStyle = `rgba(${col}, 0.8)`;
+		ctx.lineWidth = 2;
+		ctx.beginPath();
+		ctx.arc(cx, cy, R, 0, 2 * Math.PI);
+		ctx.stroke();
 
 		if (this.detailsEl && now - this.lastDetailsUpdate > 1000) {
 			this.lastDetailsUpdate = now;
